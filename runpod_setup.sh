@@ -24,10 +24,12 @@ ollama pull qwen2.5:3b
 echo "🎬 Verificando ffmpeg..."
 apt-get update -qq && apt-get install -y -qq ffmpeg > /dev/null
 
-# 3. Instalar librerías de Python requeridas con las versiones exactas probadas
+# 3. Instalar librerías de Python requeridas para Python 3.12 en RunPod
 echo "🐍 Instalando librerías de IA..."
-pip install --no-cache-dir "numpy==1.26.4" "pandas==1.5.3" "scipy>=1.11.0,<1.14.0"
-pip install --no-cache-dir "transformers==4.42.4" torchcodec
+pip install --no-cache-dir setuptools wheel
+pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
+pip install --no-cache-dir pandas scipy "transformers==4.42.4"
+pip install --no-cache-dir torchcodec || true
 pip install --no-cache-dir TTS
 pip install --no-cache-dir -r requirements.txt
 
