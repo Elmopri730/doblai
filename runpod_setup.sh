@@ -26,11 +26,11 @@ apt-get update -qq && apt-get install -y -qq ffmpeg > /dev/null
 
 # 3. Instalar librerías de Python requeridas para Python 3.12 en RunPod
 echo "🐍 Instalando librerías de IA..."
-pip install --no-cache-dir setuptools wheel
+pip install --no-cache-dir setuptools wheel cython
 pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
 pip install --no-cache-dir pandas scipy "transformers==4.42.4"
 pip install --no-cache-dir torchcodec || true
-pip install --no-cache-dir TTS
+pip install --no-cache-dir --ignore-requires-python TTS
 pip install --no-cache-dir -r requirements.txt
 
 # Asegurar que las carpetas de trabajo existan
