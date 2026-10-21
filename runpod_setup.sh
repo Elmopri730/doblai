@@ -56,12 +56,31 @@ mkdir -p input output work
 echo "🔍 Verificando instalación..."
 python -c "import torch; import torchaudio; import TTS; print('✅ Todos los módulos cargan correctamente!')"
 
-# 8. Lanzar la webapp
-echo "=========================================="
-echo "🎉 ¡DoblAI listo! Iniciando servidor web..."
-echo "🌐 Accede a tu DoblAI en:"
-echo "   https://0wrz89c48a5enn-8080.proxy.runpod.net"
-echo "=========================================="
+# 8. Instalar y arrancar túnel seguro Cloudflare para acceso público inmediato
+echo "🌐 Configurando enlace web público..."
+if ! command -v cloudflared &> /dev/null; then
+    curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+    chmod +x /usr/local/bin/cloudflared
+fi
+
+# Lanzar uvicorn en segundo plano
 export OLLAMA_URL="http://localhost:11434"
 export COQUI_TOS_AGREED="1"
-uvicorn webapp.app:app --host 0.0.0.0 --port 8080
+uvicorn webapp.app:app --host 0.0.0.0 --port 8080 > /tmp/uvicorn.log 2>&1 &
+sleep 2
+
+# Lanzar túnel Cloudflare
+rm -f /tmp/tunnel.log
+cloudflared tunnel --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
+sleep 5
+
+TUNNEL_URL=$(grep -o 'https://[-0-9a-z]*\.trycloudflare\.com' /tmp/tunnel.log | head -n 1)
+
+echo "=========================================================="
+echo "🎉 ¡DoblAI ESTÁ FUNCIONANDO EN LA RTX 4090!"
+echo "👉 ENTRA DESDE TU NAVEGADOR A ESTE ENLACE:"
+echo "   $TUNNEL_URL"
+echo "=========================================================="
+
+# Mantener la terminal activa mostrando logs
+tail -f /tmp/uvicorn.log
