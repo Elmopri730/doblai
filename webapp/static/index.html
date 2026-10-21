@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DoblAI — Sistema de Doblaje Automático con IA</title>
+  <meta name="description" content="Sistema local de doblaje automático de vídeo con Inteligencia Artificial. 100% privado, sin nube, sin suscripciones."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Variables de diseño ─────────────────────────────────────── */
+    :root {
+      --bg:          #080b14;
+      --surface:     #0f1624;
+      --surface-2:   #161f30;
+      --border:      rgba(99, 179, 237, 0.12);
+      --border-glow: rgba(99, 179, 237, 0.35);
+      --accent:      #3b82f6;
+      --accent-2:    #8b5cf6;
+      --accent-glow: rgba(59, 130, 246, 0.4);
+      --success:     #10b981;
+      --warning:     #f59e0b;
+      --error:       #ef4444;
+      --text:        #e2e8f0;
+      --text-dim:    #64748b;
+      --text-muted:  #334155;
+      --radius:      16px;
+      --radius-sm:   8px;
+    }
+
+    /* ── Reset & Base ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Fondo animado con gradiente */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% -10%, rgba(59,130,246,.15) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 110%, rgba(139,92,246,.12) 0%, transparent 55%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    header {
+      padding: 32px 0 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 48px;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 24px var(--accent-glow);
+    }
+    .logo-text h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+    .logo-text h1 span { background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .logo-text p { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
+
+    .status-badge {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.75rem; color: var(--text-dim);
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse-dot 2s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+    /* ── Drop Zone ───────────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s, background .25s, box-shadow .25s;
+      position: relative; overflow: hidden;
+      background: var(--surface);
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(59,130,246,.06);
+      box-shadow: 0 0 40px rgba(59,130,246,.15), inset 0 0 40px rgba(59,130,246,.04);
+    }
+    .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+    .drop-icon {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(139,92,246,.2));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; margin: 0 auto 20px;
+      border: 1px solid var(--border);
+      transition: transform .3s;
+    }
+    .drop-zone:hover .drop-icon { transform: scale(1.08); }
+    .drop-zone h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 8px; }
+    .drop-zone p { color: var(--text-dim); font-size: 0.85rem; }
+    .drop-zone .formats { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .format-tag {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 10px; font-size: 0.72rem;
+      color: var(--text-dim); font-weight: 500;
+    }
+    .btn-upload {
+      margin-top: 24px;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff; font-weight: 600; font-size: 0.9rem;
+      border: none; border-radius: var(--radius-sm);
+      padding: 11px 28px; cursor: pointer;
+      box-shadow: 0 4px 24px var(--accent-glow);
+      transition: opacity .2s, transform .2s;
+    }
+    .btn-upload:hover { opacity: .88; transform: translateY(-1px); }
+
+    /* ── Pipeline visual ─────────────────────────────────────────── */
+    .pipeline-legend {
+      margin: 40px 0 32px;
+      display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    }
+    .stage-pill {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 999px; padding: 5px 14px;
+      font-size: 0.75rem; color: var(--text-dim);
+      transition: border-color .3s, color .3s;
+    }
+    .stage-pill.active { border-color: var(--accent); color: var(--accent); }
+    .stage-pill.done   { border-color: var(--success); color: var(--success); }
+    .stage-pill-num {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--surface-2); display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+    }
+    .stage-pill.active .stage-pill-num { background: var(--accent); color: #fff; }
+    .stage-pill.done   .stage-pill-num { background: var(--success); color: #fff; }
+
+    /* ── Sección de trabajos ─────────────────────────────────────── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .badge-count {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 2px 10px;
+      font-size: 0.72rem; color: var(--text-dim);
+    }
+
+    /* ── Tarjeta de trabajo ──────────────────────────────────────── */
+    .jobs-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .job-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      transition: border-color .3s, box-shadow .3s;
+      animation: card-in .35s ease-out;
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .job-card.running { border-color: rgba(59,130,246,.4); box-shadow: 0 0 24px rgba(59,130,246,.08); }
+    .job-card.done    { border-color: rgba(16,185,129,.35); }
+    .job-card.error   { border-color: rgba(239,68,68,.35); }
+
+    .job-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+    .job-file-icon {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(139,92,246,.2));
+      border: 1px solid var(--border);
+    }
+    .job-meta { flex: 1; min-width: 0; }
+    .job-filename { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .job-message  { font-size: 0.78rem; color: var(--text-dim); margin-top: 3px; }
+    .job-status-badge {
+      flex-shrink: 0;
+      border-radius: 999px; padding: 3px 10px; font-size: 0.72rem; font-weight: 600;
+    }
+    .job-status-badge.queued  { background: rgba(100,116,139,.2); color: var(--text-dim); border: 1px solid var(--text-muted); }
+    .job-status-badge.running { background: rgba(59,130,246,.15); color: var(--accent); border: 1px solid rgba(59,130,246,.4); }
+    .job-status-badge.done    { background: rgba(16,185,129,.15); color: var(--success); border: 1px solid rgba(16,185,129,.4); }
+    .job-status-badge.error   { background: rgba(239,68,68,.15); color: var(--error); border: 1px solid rgba(239,68,68,.4); }
+
+    /* Barra de progreso */
+    .progress-wrap { margin-bottom: 14px; }
+    .progress-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 7px; }
+    .progress-bar-bg {
+      height: 6px; border-radius: 999px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    .progress-bar-fill::after {
+      content: '';
+      position: absolute; top: 0; right: 0; bottom: 0; width: 40px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.25));
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer { from { transform: translateX(-40px); } to { transform: translateX(40px); } }
+    .job-card.done .progress-bar-fill::after, .job-card.error .progress-bar-fill::after { display: none; }
+    .job-card.done  .progress-bar-fill { background: linear-gradient(90deg, var(--success), #34d399); }
+    .job-card.error .progress-bar-fill { background: linear-gradient(90deg, var(--error), #f87171); }
+
+    /* Minipíldoras de etapas */
+    .mini-stages { display: flex; gap: 4px; flex-wrap: wrap; }
+    .mini-stage {
+      height: 4px; flex: 1; min-width: 28px;
+      border-radius: 2px; background: var(--surface-2);
+      transition: background .4s;
+    }
+    .mini-stage.active { background: var(--accent); }
+    .mini-stage.done   { background: var(--success); }
+
+    /* Botones de descarga */
+    .job-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .btn-dl {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--text); font-size: 0.78rem; font-weight: 500;
+      border-radius: var(--radius-sm); padding: 7px 14px;
+      text-decoration: none; cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s;
+    }
+    .btn-dl:hover { border-color: var(--accent); background: rgba(59,130,246,.08); transform: translateY(-1px); }
+
+    .btn-action {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      color: var(--text); font-size: 0.78rem; font-weight: 500;
+      border-radius: var(--radius-sm); padding: 5px 12px;
+      cursor: pointer; transition: border-color .2s, background .2s, transform .15s;
+    }
+    .btn-action:hover { border-color: var(--accent); background: rgba(59,130,246,.08); transform: translateY(-1px); }
+    .btn-action.danger:hover { border-color: var(--error); background: rgba(239,68,68,.1); color: var(--error); }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center; padding: 48px 0; color: var(--text-dim);
+    }
+    .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: .4; }
+    .empty-state p { font-size: 0.85rem; }
+
+    /* ── Toast ───────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 22px;
+      font-size: 0.85rem; color: var(--text);
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .3s;
+      opacity: 0; z-index: 9999;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ── Footer ──────────────────────────────────────────────────── */
+    footer {
+      margin-top: 80px; padding: 24px 0;
+      border-top: 1px solid var(--border);
+      text-align: center; font-size: 0.75rem; color: var(--text-muted);
+    }
+
+    /* ── Scroll suave ────────────────────────────────────────────── */
+    html { scroll-behavior: smooth; }
+
+    /* ── Responsive ──────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .drop-zone { padding: 36px 16px; }
+      .pipeline-legend { gap: 6px; }
+      header { margin-bottom: 32px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ───────────────────────────────────────────────────── -->
+  <header>
+    <div style="display:flex;align-items:center;">
+      <div class="logo">
+        <div class="logo-icon">🎙️</div>
+        <div class="logo-text">
+          <h1>Dob<span>lAI</span></h1>
+          <p>Doblaje automático con IA · 100% local · Sin nube</p>
+        </div>
+      </div>
+      <div class="status-badge">
+        <span class="status-dot" id="serverDot"></span>
+        <span id="serverStatus">Comprobando servidor...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Zona de carga ─────────────────────────────────────────────── -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".mp4,.mkv,.mov,.avi" multiple/>
+    <div class="drop-icon">🎬</div>
+    <h2>Arrastra tu vídeo aquí</h2>
+    <p>o haz clic para buscar en tu ordenador</p>
+    <div class="formats">
+      <span class="format-tag">MP4</span>
+      <span class="format-tag">MKV</span>
+      <span class="format-tag">MOV</span>
+      <span class="format-tag">AVI</span>
+    </div>
+    <button class="btn-upload" type="button" onclick="document.getElementById('fileInput').click()">
+      ⬆️ Seleccionar vídeo
+    </button>
+  </div>
+
+  <!-- ── Leyenda del pipeline ──────────────────────────────────────── -->
+  <div class="pipeline-legend" id="pipelineLegend">
+    <div class="stage-pill" data-stage="0"><span class="stage-pill-num">1</span>Ingesta</div>
+    <div class="stage-pill" data-stage="1"><span class="stage-pill-num">2</span>Separación</div>
+    <div class="stage-pill" data-stage="2"><span class="stage-pill-num">3</span>Transcripción</div>
+    <div class="stage-pill" data-stage="3"><span class="stage-pill-num">4</span>Traducción</div>
+    <div class="stage-pill" data-stage="4"><span class="stage-pill-num">5</span>TTS</div>
+    <div class="stage-pill" data-stage="5"><span class="stage-pill-num">6</span>Mezcla final</div>
+  </div>
+
+  <!-- ── Lista de trabajos ─────────────────────────────────────────── -->
+  <div class="section-header">
+    <span class="section-title">Historial de trabajos</span>
+    <span class="badge-count" id="jobsCount">0 vídeos</span>
+  </div>
+
+  <div class="jobs-list" id="jobsList">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">📭</div>
+      <p>Aún no has procesado ningún vídeo. ¡Arrastra uno arriba para empezar!</p>
+    </div>
+  </div>
+
+  <footer>
+    DoblAI v0.1 · Pipeline automatizado de doblaje con IA · 100% open source · Sin APIs externas
+  </footer>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<script>
+// ── Estado local ──────────────────────────────────────────────────
+const state = {
+  jobs: {},         // job_id → datos del trabajo
+  eventSources: {}, // job_id → EventSource abierta
+};
+
+const STAGES = [
+  "Ingesta y análisis del vídeo",
+  "Separación de voz y música",
+  "Transcripción de voz a texto",
+  "Corrección y traducción al español",
+  "Síntesis de voz en español (TTS)",
+  "Mezcla de audio y vídeo final",
+];
+
+// ── Helpers de UI ─────────────────────────────────────────────────
+
+function toast(msg, duration = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function statusLabel(status) {
+  return { queued: 'En cola', running: 'Procesando', done: '✓ Listo', error: '✗ Error' }[status] || status;
+}
+
+// ── Verificar estado del servidor ─────────────────────────────────
+async function checkServer() {
+  try {
+    const r = await fetch('/api/jobs');
+    if (r.ok) {
+      document.getElementById('serverDot').style.background = 'var(--success)';
+      document.getElementById('serverStatus').textContent = 'Servidor activo';
+      const jobs = await r.json();
+      jobs.forEach(job => {
+        state.jobs[job.id] = job;
+        renderJob(job.id);
+        if (job.status === 'running') subscribeToJob(job.id);
+      });
+      updateJobsCount();
+    }
+  } catch(e) {
+    document.getElementById('serverDot').style.background = 'var(--error)';
+    document.getElementById('serverStatus').textContent = 'Sin conexión al servidor';
+  }
+}
+
+// ── Renderizar tarjeta de trabajo ─────────────────────────────────
+function renderJob(jobId) {
+  const job = state.jobs[jobId];
+  if (!job) return;
+
+  const list = document.getElementById('jobsList');
+  document.getElementById('emptyState').style.display = 'none';
+
+  let card = document.getElementById(`job-${jobId}`);
+  if (!card) {
+    card = document.createElement('div');
+    card.id = `job-${jobId}`;
+    card.className = 'job-card';
+    list.prepend(card);
+  }
+
+  card.className = `job-card ${job.status || 'queued'}`;
+
+  const pct = job.progress_pct || 0;
+  const currentIdx = job.current_stage_idx ?? -1;
+
+  // Mini-barras de etapas
+  const miniStages = STAGES.map((_, i) => {
+    let cls = '';
+    if (i < currentIdx)  cls = 'done';
+    if (i === currentIdx) cls = 'active';
+    return `<div class="mini-stage ${cls}" title="${STAGES[i]}"></div>`;
+  }).join('');
+
+  // Botones de descarga (solo si está listo)
+  let actions = '';
+  if (job.status === 'done') {
+    const outputs = job.outputs || {};
+    actions = `
+      <div class="job-actions">
+        ${outputs.output_video ? `<a class="btn-dl" href="/api/jobs/${jobId}/download/video" download>🎬 Descargar vídeo doblado (.mp4)</a>` : ''}
+        <a class="btn-dl" href="/api/jobs/${jobId}/download/subtitle/srt" download>📄 Subtítulos .srt</a>
+        <a class="btn-dl" href="/api/jobs/${jobId}/download/subtitle/vtt" download>📄 Subtítulos .vtt</a>
+        <a class="btn-dl" href="/api/jobs/${jobId}/download/transcript" download>📋 Transcripción ES</a>
+      </div>`;
+  }
+  if (job.status === 'error') {
+    actions = `<div class="job-actions">
+      <span style="font-size:.78rem;color:var(--error); flex: 1;">⚠️ ${job.error || 'Error desconocido'}</span>
+      <button class="btn-action" onclick="retryJob('${jobId}')">🔄 Reintentar</button>
+    </div>`;
+  }
+  
+  // Añadir botón de descartar en todos los estados (al lado derecho o abajo)
+  actions += `<div class="job-actions" style="margin-top: 8px;">
+    <button class="btn-action danger" onclick="deleteJob('${jobId}')">🗑️ Descartar / Borrar</button>
+  </div>`;
+
+  card.innerHTML = `
+    <div class="job-header">
+      <div class="job-file-icon">🎬</div>
+      <div class="job-meta">
+        <div class="job-filename" title="${job.filename}">${job.filename}</div>
+        <div class="job-message">${job.message || '...'}</div>
+      </div>
+      <span class="job-status-badge ${job.status || 'queued'}">${statusLabel(job.status)}</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-info">
+        <span>${job.current_stage || 'Esperando...'}</span>
+        <span>${pct}%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${pct}%"></div>
+      </div>
+    </div>
+    <div class="mini-stages">${miniStages}</div>
+    ${actions}
+  `;
+}
+
+function updateJobsCount() {
+  const n = Object.keys(state.jobs).length;
+  document.getElementById('jobsCount').textContent = `${n} vídeo${n !== 1 ? 's' : ''}`;
+}
+
+// ── SSE: suscribirse a actualizaciones en tiempo real ─────────────
+function subscribeToJob(jobId) {
+  if (state.eventSources[jobId]) return; // ya suscrito
+  const es = new EventSource(`/api/jobs/${jobId}/events`);
+  state.eventSources[jobId] = es;
+
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    // Mezclar datos nuevos con el estado existente
+    state.jobs[jobId] = { ...state.jobs[jobId], ...data };
+    renderJob(jobId);
+
+    // Actualizar leyenda del pipeline con la etapa activa
+    if (data.current_stage_idx !== undefined) {
+      updatePipelineLegend(data.current_stage_idx, data.status);
+    }
+
+    if (data.status === 'done') {
+      toast(`✅ ¡${state.jobs[jobId].filename} doblado con éxito!`);
+      es.close(); delete state.eventSources[jobId];
+    }
+    if (data.status === 'error') {
+      toast(`❌ Error procesando ${state.jobs[jobId].filename}`);
+      es.close(); delete state.eventSources[jobId];
+    }
+  };
+  es.onerror = () => { es.close(); delete state.eventSources[jobId]; };
+}
+
+function updatePipelineLegend(activeIdx, status) {
+  document.querySelectorAll('.stage-pill').forEach((pill, i) => {
+    pill.classList.remove('active', 'done');
+    if (status === 'done') { pill.classList.add('done'); return; }
+    if (i < activeIdx)  pill.classList.add('done');
+    if (i === activeIdx) pill.classList.add('active');
+  });
+}
+
+// ── Funciones de Acción ───────────────────────────────────────────
+async function retryJob(jobId) {
+  toast('🔄 Reintentando...');
+  try {
+    const r = await fetch(`/api/jobs/${jobId}/retry`, { method: 'POST' });
+    if (!r.ok) throw new Error('Error al reintentar');
+    // Forzamos recarga del estado local por si acaso
+    checkServer(); 
+    toast('🚀 Trabajo reanudado');
+  } catch(e) {
+    toast('❌ No se pudo reintentar el trabajo');
+  }
+}
+
+async function deleteJob(jobId) {
+  if (!confirm('¿Seguro que quieres descartar este vídeo?')) return;
+  toast('🗑️ Descartando...');
+  try {
+    const r = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('Error al borrar');
+    
+    // Quitar de UI y memoria
+    delete state.jobs[jobId];
+    if (state.eventSources[jobId]) {
+      state.eventSources[jobId].close();
+      delete state.eventSources[jobId];
+    }
+    const card = document.getElementById(`job-${jobId}`);
+    if (card) card.remove();
+    updateJobsCount();
+    
+    if (Object.keys(state.jobs).length === 0) {
+      document.getElementById('emptyState').style.display = 'block';
+    }
+    toast('✅ Descartado');
+  } catch(e) {
+    toast('❌ No se pudo borrar el trabajo');
+  }
+}
+
+// ── Subir vídeo ───────────────────────────────────────────────────
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  toast(`⬆️ Subiendo ${file.name}...`);
+
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const err = await r.json();
+      toast(`❌ ${err.detail || 'Error al subir el archivo'}`);
+      return;
+    }
+    const data = await r.json();
+    state.jobs[data.job_id] = {
+      id: data.job_id,
+      filename: data.filename,
+      status: 'queued',
+      progress_pct: 0,
+      message: 'En cola...',
+      current_stage: '',
+      current_stage_idx: -1,
+    };
+    renderJob(data.job_id);
+    updateJobsCount();
+    toast(`🚀 Procesando: ${file.name}`);
+    subscribeToJob(data.job_id);
+  } catch(e) {
+    toast('❌ No se pudo conectar con el servidor. ¿Está activo?');
+  }
+}
+
+// ── Eventos de Drag & Drop ────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  [...e.dataTransfer.files].forEach(uploadFile);
+});
+fileInput.addEventListener('change', () => {
+  [...fileInput.files].forEach(uploadFile);
+  fileInput.value = '';
+});
+
+// ── Inicio ────────────────────────────────────────────────────────
+checkServer();
+</script>
+</body>
+</html>

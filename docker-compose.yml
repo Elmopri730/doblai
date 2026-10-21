@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  webapp:
+    build: .
+    container_name: doblaje_webapp
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./work:/app/work
+      - ./config:/app/config
+      - ./webapp:/app/webapp
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+    environment:
+      - PIPELINE_CONFIG_PATH=/app/config/config.yaml
+    depends_on:
+      - ollama
+    # Habilitar GPU si el host tiene Docker configurado para NVIDIA
+    # (Si no tiene, Docker ignorará esto o lanzará warning pero puede arrancar en CPU si se quita, 
+    # aunque en V2/V3 a veces falla si no hay GPU. Si falla, el usuario puede comentar este bloque).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama:
+    image: ollama/ollama
+    container_name: doblaje_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Servicio efímero para asegurar que el modelo se descarga al arrancar
+  ollama-pull:
+    image: curlimages/curl:latest
+    container_name: doblaje_ollama_pull
+    depends_on:
+      - ollama
+    restart: "no"
+    command: >
+      sh -c "
+      echo 'Esperando a que Ollama inicie...' &&
+      sleep 5 &&
+      echo 'Descargando modelo qwen2.5:3b (puede tardar la primera vez)...' &&
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen2.5:3b\"}'
+      "
+
+volumes:
+  ollama_data:

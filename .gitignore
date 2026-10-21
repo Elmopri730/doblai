@@ -1,0 +1,38 @@
+# Entornos virtuales y Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+venv/
+ENV/
+
+# Archivos de trabajo y caché de tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Carpetas de datos y medios del doblador (no subir vídeos/audios a GitHub)
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+work/*
+!work/.gitkeep
+
+# Archivos multimedia
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.wav
+*.mp3
+*.flac
+
+# IDEs y SO
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
