@@ -61,10 +61,11 @@ class LLMTranslator:
         self.config = config
         self.work_dir = Path(config.get("pipeline", {}).get("work_dir", "./work"))
 
-        # Leer configuración de traducción desde config.yaml
+        # Leer configuración de traducción desde config.yaml o variable de entorno
         translation_cfg = config.get("stages", {}).get("translation", {})
-        self.ollama_base_url = translation_cfg.get("ollama_url", "http://localhost:11434")
-        self.model = translation_cfg.get("model", "qwen2.5:3b")
+        import os
+        self.ollama_base_url = os.environ.get("OLLAMA_URL", translation_cfg.get("ollama_url", "http://localhost:11434"))
+        self.model = os.environ.get("OLLAMA_MODEL", translation_cfg.get("model", "qwen2.5:3b"))
         self.temperature = translation_cfg.get("temperature", 0.2)
         self.max_retries = translation_cfg.get("max_retries", 3)
 
