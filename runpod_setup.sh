@@ -40,7 +40,7 @@ if ! python -c "import TTS" &> /dev/null; then
     git clone --depth 1 https://github.com/coqui-ai/TTS.git /tmp/TTS
     sed -i 's/3.12/3.15/g' /tmp/TTS/setup.py
     pip install --no-cache-dir --no-deps --no-build-isolation -e /tmp/TTS
-    pip install --no-cache-dir coqpit trainer pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
+    pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
 fi
 
 # 6. Instalar el resto de dependencias de DoblAI
