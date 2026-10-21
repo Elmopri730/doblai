@@ -38,7 +38,7 @@ echo "🎙️ Instalando Coqui TTS (con parche Python 3.12)..."
 if ! python -c "import TTS" &> /dev/null; then
     rm -rf /tmp/TTS
     git clone --depth 1 https://github.com/coqui-ai/TTS.git /tmp/TTS
-    sed -i 's/>= Version("3.12")/>= Version("3.15")/g' /tmp/TTS/setup.py
+    sed -i 's/3.12/3.15/g' /tmp/TTS/setup.py
     pip install --no-cache-dir --no-deps --no-build-isolation -e /tmp/TTS
     pip install --no-cache-dir coqpit trainer pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
 fi
