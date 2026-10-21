@@ -5,7 +5,10 @@ echo "=========================================="
 echo "🚀 Configurando DoblAI en RunPod GPU..."
 echo "=========================================="
 
-# 1. Instalar Ollama si no está presente
+# 1. Instalar herramientas de compilación
+pip install --no-cache-dir setuptools wheel cython
+
+# 2. Instalar Ollama si no está presente
 if ! command -v ollama &> /dev/null; then
     echo "📦 Instalando Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
@@ -20,26 +23,38 @@ sleep 3
 echo "📥 Descargando modelo de traducción qwen2.5:3b..."
 ollama pull qwen2.5:3b
 
-# 2. Instalar dependencias del sistema requeridas (ffmpeg)
-echo "🎬 Verificando ffmpeg..."
-apt-get update -qq && apt-get install -y -qq ffmpeg > /dev/null
+# 3. Instalar dependencias del sistema requeridas (ffmpeg, git)
+echo "🎬 Verificando ffmpeg y herramientas del sistema..."
+apt-get update -qq && apt-get install -y -qq ffmpeg git > /dev/null
 
-# 3. Instalar librerías de Python requeridas para Python 3.12 en RunPod
-echo "🐍 Instalando librerías de IA..."
-pip install --no-cache-dir setuptools wheel cython
+# 4. Instalar librerías base de Python compatibles
+echo "🐍 Instalando librerías base de IA..."
 pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
 pip install --no-cache-dir pandas scipy "transformers==4.42.4"
 pip install --no-cache-dir torchcodec || true
-pip install --no-cache-dir --ignore-requires-python TTS
+
+# 5. Instalar Coqui TTS con parche para Python 3.12
+echo "🎙️ Instalando Coqui TTS (con parche Python 3.12)..."
+if ! python -c "import TTS" &> /dev/null; then
+    rm -rf /tmp/TTS
+    git clone --depth 1 https://github.com/coqui-ai/TTS.git /tmp/TTS
+    sed -i 's/>= Version("3.12")/>= Version("3.15")/g' /tmp/TTS/setup.py
+    pip install --no-cache-dir --no-deps --no-build-isolation -e /tmp/TTS
+    pip install --no-cache-dir coqpit trainer pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
+fi
+
+# 6. Instalar el resto de dependencias de DoblAI
+echo "📦 Instalando dependencias de la aplicación..."
 pip install --no-cache-dir -r requirements.txt
 
 # Asegurar que las carpetas de trabajo existan
 mkdir -p input output work
 
-# 4. Lanzar la webapp
+# 7. Lanzar la webapp
 echo "=========================================="
 echo "🎉 ¡DoblAI listo! Iniciando servidor web..."
-echo "🌐 Accede al puerto 8080 desde tu navegador"
+echo "🌐 Accede a tu DoblAI en:"
+echo "   https://0wrz89c48a5enn-8080.proxy.runpod.net"
 echo "=========================================="
 export OLLAMA_URL="http://localhost:11434"
 export COQUI_TOS_AGREED="1"
