@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 echo "=========================================="
 echo "🚀 Configurando DoblAI en RunPod GPU..."
@@ -33,15 +32,18 @@ pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
 pip install --no-cache-dir pandas scipy "transformers==4.42.4"
 pip install --no-cache-dir torchcodec || true
 
-# 5. Instalar Coqui TTS con parche para Python 3.12
-echo "🎙️ Instalando Coqui TTS (con parche Python 3.12)..."
+# 5. Instalar Coqui TTS con parche para Python 3.12 si no está instalado
+echo "🎙️ Verificando Coqui TTS..."
 if ! python -c "import TTS" &> /dev/null; then
     rm -rf /tmp/TTS
     git clone --depth 1 https://github.com/coqui-ai/TTS.git /tmp/TTS
     sed -i 's/3.12/3.15/g' /tmp/TTS/setup.py
     pip install --no-cache-dir --no-deps --no-build-isolation -e /tmp/TTS
-    pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
 fi
+
+# Instalar siempre las dependencias de inferencia de TTS
+echo "📦 Instalando dependencias de inferencia..."
+pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
 
 # 6. Instalar el resto de dependencias de DoblAI
 echo "📦 Instalando dependencias de la aplicación..."
@@ -50,7 +52,11 @@ pip install --no-cache-dir -r requirements.txt
 # Asegurar que las carpetas de trabajo existan
 mkdir -p input output work
 
-# 7. Lanzar la webapp
+# 7. Probar que los módulos cargan correctamente
+echo "🔍 Verificando instalación..."
+python -c "import torch; import torchaudio; import TTS; print('✅ Todos los módulos cargan correctamente!')"
+
+# 8. Lanzar la webapp
 echo "=========================================="
 echo "🎉 ¡DoblAI listo! Iniciando servidor web..."
 echo "🌐 Accede a tu DoblAI en:"
