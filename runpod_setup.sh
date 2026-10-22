@@ -56,26 +56,20 @@ mkdir -p input output work
 echo "🔍 Verificando instalación..."
 python -c "import torch; import torchaudio; import TTS; print('✅ Todos los módulos cargan correctamente!')"
 
-# 8. Limpiar procesos previos y arrancar servidor + túnel seguro
+# 8. Arrancar túnel Cloudflare y servidor web en primer plano
 echo "🌐 Configurando enlace web público..."
-pkill -f uvicorn 2>/dev/null || true
-pkill -f cloudflared 2>/dev/null || true
-sleep 2
+pkill -9 -f "uvicorn webapp.app:app" 2>/dev/null || true
+pkill -9 -f "cloudflared tunnel" 2>/dev/null || true
+sleep 1
 
 if ! command -v cloudflared &> /dev/null; then
     curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
     chmod +x /usr/local/bin/cloudflared
 fi
 
-# Lanzar uvicorn en segundo plano
-export OLLAMA_URL="http://localhost:11434"
-export COQUI_TOS_AGREED="1"
-uvicorn webapp.app:app --host 0.0.0.0 --port 8080 > /tmp/uvicorn.log 2>&1 &
-sleep 3
-
-# Lanzar túnel Cloudflare limpio
+# Lanzar túnel Cloudflare en segundo plano con nohup
 rm -f /tmp/tunnel.log
-cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
+nohup cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
 
 echo "⏳ Conectando túnel público..."
 TUNNEL_URL=""
@@ -92,6 +86,9 @@ echo "🎉 ¡DoblAI ESTÁ FUNCIONANDO EN LA RTX 4090!"
 echo "👉 ENTRA DESDE TU NAVEGADOR A ESTE ENLACE:"
 echo "   $TUNNEL_URL"
 echo "=========================================================="
+echo ""
+echo "🚀 Servidor activo y escuchando peticiones:"
 
-# Mantener la terminal activa mostrando logs
-tail -f /tmp/uvicorn.log
+export OLLAMA_URL="http://localhost:11434"
+export COQUI_TOS_AGREED="1"
+exec uvicorn webapp.app:app --host 0.0.0.0 --port 8080
