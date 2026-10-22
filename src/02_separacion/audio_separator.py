@@ -23,7 +23,10 @@ class AudioSeparatorWrapper:
 
         # Parámetros de la etapa
         self.stage_config = config.get("stages", {}).get("separation", {})
-        self.model_name = self.stage_config.get("model", "UVR-MDX-NET-Inst_HQ_3.onnx")
+        raw_model = self.stage_config.get("model", "UVR-MDX-NET-Inst_HQ_3.onnx")
+        if raw_model in ["htdemucs", "demucs", ""]:
+            raw_model = "UVR-MDX-NET-Inst_HQ_3.onnx"
+        self.model_name = raw_model
 
     def detect_onnx_provider(self) -> str:
         """Detecta los proveedores de ejecución de ONNX disponibles y retorna el adecuado."""

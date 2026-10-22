@@ -11,7 +11,7 @@ pipeline:
 
 stages:
   separation:
-    model: "htdemucs"
+    model: "UVR-MDX-NET-Inst_HQ_3.onnx"
   
   transcription:
     model: "whisper-base"
