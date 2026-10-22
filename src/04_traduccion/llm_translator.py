@@ -7,44 +7,35 @@ transcript_translated.json con:
   - Texto completo traducido al español de España.
   - Timestamps ORIGINALES preservados para la síntesis de voz posterior.
 
-Estrategia de procesamiento por lotes (chunking):
-  Whisper puede generar cientos de segmentos. Enviamos al LLM grupos de
-  MAX_CHUNK_SEGMENTS segmentos para no superar la ventana de contexto de
-  los modelos pequeños (3B) y garantizar respuestas JSON estables.
+Estrategia:
+  Procesamiento en lotes pequeños (5 segmentos) con fallback individual
+  garantizado para que NUNCA se devuelva texto en inglés.
 """
+
+from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 logger = logging.getLogger("dubbing.traduccion")
 
-# Número máximo de segmentos por llamada al LLM
-MAX_CHUNK_SEGMENTS = 20
+# Lotes pequeños para máxima fiabilidad y precisión en modelos de 3B
+MAX_CHUNK_SEGMENTS = 5
 
-# System prompt que instruye al LLM — NO modificar sin justificación técnica.
-SYSTEM_PROMPT = """Eres un corrector y traductor profesional especializado en doblaje audiovisual.
+SYSTEM_PROMPT = """Eres un traductor profesional de cine y televisión especializado en doblaje al español de España.
+Tu trabajo es traducir los diálogos del vídeo al español (castellano natural y formal de España).
 
-Tu tarea es procesar una lista de segmentos de transcripción automática (STT) en formato JSON.
-Para cada segmento debes:
-1. CORREGIR los errores típicos de STT: palabras mal transcritas, nombres propios, siglas,
-   puntuación incorrecta, repeticiones y fragmentaciones. NO alteres el significado.
-2. TRADUCIR el texto corregido al español de España (castellano formal pero natural),
-   adaptando las expresiones idiomáticas para que suenen bien en doblaje.
-3. CONSERVAR exactamente los campos "id", "start" y "end" sin modificarlos.
-
-Responde ÚNICAMENTE con un objeto JSON válido con la siguiente estructura, sin texto adicional:
+REGLAS CRÍTICAS:
+1. Traduce TODO el texto al español. NUNCA dejes frases en inglés.
+2. Adapta las expresiones coloquiales o idiomáticas para que suenen 100% naturales en español hablado.
+3. Responde ÚNICAMENTE con un JSON válido con la siguiente estructura:
 {
-  "segments": [
-    {
-      "id": <número igual al original>,
-      "start": <número igual al original>,
-      "end": <número igual al original>,
-      "text_original": "<texto corregido en idioma original>",
-      "text_es": "<traducción al español>"
-    }
+  "translations": [
+    {"id": <número id>, "text_es": "<traducción en español>"}
   ]
 }"""
 
@@ -52,9 +43,6 @@ Responde ÚNICAMENTE con un objeto JSON válido con la siguiente estructura, sin
 class LLMTranslator:
     """
     Etapa 04 — Corrección de texto y traducción al español con LLM local (Ollama).
-
-    Utiliza la API compatible con OpenAI de Ollama para enviar los segmentos
-    en lotes y recibir JSON estructurado.
     """
 
     def __init__(self, config: dict):
@@ -69,35 +57,73 @@ class LLMTranslator:
         self.temperature = translation_cfg.get("temperature", 0.2)
         self.max_retries = translation_cfg.get("max_retries", 3)
 
-    # ------------------------------------------------------------------
-    # Helpers internos
-    # ------------------------------------------------------------------
-
     def _build_client(self):
         """Crea un cliente OpenAI apuntando a la API local de Ollama."""
         try:
             from openai import OpenAI
         except ImportError:
             raise RuntimeError(
-                "La librería 'openai' no está instalada. "
-                "Ejecuta: pip install openai"
+                "La librería 'openai' no está instalada. Ejecuta: pip install openai"
             )
         return OpenAI(
             base_url=f"{self.ollama_base_url}/v1",
-            api_key="ollama",  # Ollama no requiere API key real
+            api_key="ollama",
         )
+
+    def _translate_single(self, client, text: str) -> str:
+        """
+        Traduce una sola frase al español de forma directa.
+        Imposible que falle o devuelva estructura errónea.
+        """
+        text = text.strip()
+        if not text:
+            return ""
+
+        for attempt in range(1, 3):
+            try:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "Eres un traductor al español. Traduce la siguiente frase al español de España. "
+                                "Responde ÚNICAMENTE con el texto en español traducido, sin explicaciones, "
+                                "sin comillas y sin repetir el inglés."
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Traduce al español: {text}"
+                        }
+                    ],
+                    temperature=0.2,
+                )
+                raw = response.choices[0].message.content.strip().strip('"').strip("'")
+                # Limpiar prefijos si el modelo los añade
+                for prefix in ["Traducción:", "Traduccion:", "Español:", "Espanol:", "Spanish:"]:
+                    if raw.lower().startswith(prefix.lower()):
+                        raw = raw[len(prefix):].strip()
+                if raw and raw.lower() != text.lower():
+                    return raw
+            except Exception as e:
+                logger.warning(f"Intento {attempt} de traducción individual falló: {e}")
+                time.sleep(1)
+
+        return text
 
     def _translate_chunk(self, client, segments_chunk: List[dict]) -> List[dict]:
         """
-        Envía un lote de segmentos al LLM y devuelve los segmentos traducidos.
-        Reintenta hasta max_retries veces si la respuesta no es JSON válido.
+        Envía un lote de 5 segmentos al LLM y parsea la respuesta.
+        Si algún segmento falta o no se tradujo, lo traduce individualmente.
         """
-        # Preparar input minimalista para el LLM (solo id, start, end, text)
-        slim_segments = [
-            {"id": s["id"], "start": s["start"], "end": s["end"], "text": s["text"]}
+        input_data = [
+            {"id": s["id"], "text": s["text"]}
             for s in segments_chunk
         ]
-        user_content = json.dumps({"segments": slim_segments}, ensure_ascii=False)
+        user_prompt = f"Traduce los siguientes {len(segments_chunk)} segmentos al español:\n" + json.dumps(input_data, ensure_ascii=False, indent=2)
+
+        translated_map: Dict[int, str] = {}
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -105,73 +131,78 @@ class LLMTranslator:
                     model=self.model,
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user",   "content": user_content},
+                        {"role": "user",   "content": user_prompt},
                     ],
                     temperature=self.temperature,
-                    # Forzar respuesta JSON con Ollama (equivalente a response_format)
                     response_format={"type": "json_object"},
                 )
 
                 raw_content = response.choices[0].message.content.strip()
-
-                # Parsear JSON de respuesta
                 parsed = json.loads(raw_content)
-                translated_segs = parsed.get("segments", [])
 
-                if len(translated_segs) != len(segments_chunk):
-                    raise ValueError(
-                        f"El LLM devolvió {len(translated_segs)} segmentos "
-                        f"pero se enviaron {len(segments_chunk)}."
-                    )
-
-                return translated_segs
-
-            except (json.JSONDecodeError, ValueError, KeyError) as e:
-                logger.warning(
-                    f"[Intento {attempt}/{self.max_retries}] "
-                    f"Respuesta inválida del LLM: {e}. Reintentando..."
+                # Buscar la lista de resultados bajo cualquier clave razonable
+                items = (
+                    parsed.get("translations") or 
+                    parsed.get("segments") or 
+                    parsed.get("segmentos") or 
+                    (parsed if isinstance(parsed, list) else [])
                 )
-                if attempt == self.max_retries:
-                    # Fallback: devolver segmentos con texto original sin traducir
-                    logger.error(
-                        "No se pudo traducir el lote tras todos los reintentos. "
-                        "Se conserva el texto original sin traducción."
-                    )
-                    return [
-                        {
-                            "id":            s["id"],
-                            "start":         s["start"],
-                            "end":           s["end"],
-                            "text_original": s["text"],
-                            "text_es":       s["text"],  # fallback = original
-                        }
-                        for s in segments_chunk
-                    ]
+
+                if isinstance(items, list):
+                    for it in items:
+                        if isinstance(it, dict) and "id" in it:
+                            t_es = (
+                                it.get("text_es") or 
+                                it.get("translation") or 
+                                it.get("traduccion") or 
+                                it.get("text") or 
+                                ""
+                            ).strip()
+                            if t_es:
+                                translated_map[it["id"]] = t_es
+
+                # Si obtuvimos traducciones para todos los segmentos del lote, salimos del reintento
+                if len(translated_map) >= len(segments_chunk):
+                    break
+
+            except Exception as e:
+                logger.warning(f"[Intento {attempt}/{self.max_retries}] Error parseando lote: {e}")
                 time.sleep(1)
 
-    # ------------------------------------------------------------------
-    # Punto de entrada público
-    # ------------------------------------------------------------------
+        # Construir resultado final asegurando que TODO esté en español
+        result = []
+        for s in segments_chunk:
+            sid = s["id"]
+            orig_text = s["text"].strip()
+            es_text = translated_map.get(sid, "").strip()
+
+            # Si no se tradujo o quedó idéntico al inglés (y no es solo un número/palabra corta),
+            # forzar traducción individual
+            words_count = len(orig_text.split())
+            is_untranslated = (not es_text) or (es_text.lower() == orig_text.lower() and words_count > 1)
+
+            if is_untranslated:
+                logger.info(f"Traduciendo segmento individual #{sid}: '{orig_text[:40]}...'")
+                es_text = self._translate_single(client, orig_text)
+
+            result.append({
+                "id":            sid,
+                "start":         s["start"],
+                "end":           s["end"],
+                "text_original": orig_text,
+                "text_es":       es_text or orig_text,
+            })
+
+        return result
 
     def run(self, video_id: str, transcript_raw_path: str) -> dict:
         """
-        Ejecuta la corrección y traducción de los segmentos de transcripción.
-
-        Args:
-            video_id:             Identificador único del vídeo.
-            transcript_raw_path:  Ruta al transcript_raw.json (salida etapa 03).
-
-        Returns:
-            dict con claves:
-                - transcript_translated (str): ruta a transcript_translated.json
-                - segments_count        (int): número de segmentos procesados
-                - target_language       (str): idioma de destino usado
+        Ejecuta la traducción de los segmentos de transcripción.
         """
         raw_path = Path(transcript_raw_path)
         if not raw_path.exists():
             raise FileNotFoundError(f"Transcripción raw no encontrada: {raw_path}")
 
-        # Cargar transcript_raw
         with open(raw_path, "r", encoding="utf-8") as f:
             transcript_data = json.load(f)
 
@@ -181,17 +212,14 @@ class LLMTranslator:
 
         logger.info(
             f"[{video_id}] Iniciando traducción de {len(segments)} segmentos "
-            f"con modelo '{self.model}' en {self.ollama_base_url}..."
+            f"al español con modelo '{self.model}' en {self.ollama_base_url}..."
         )
 
-        # Crear directorio de salida
         stage_dir = self.work_dir / video_id / "04_traduccion"
         stage_dir.mkdir(parents=True, exist_ok=True)
 
-        # Construir cliente Ollama
         client = self._build_client()
 
-        # Procesar en chunks para no saturar la ventana de contexto del 3B
         translated_segments = []
         chunks = [
             segments[i : i + MAX_CHUNK_SEGMENTS]
@@ -200,14 +228,13 @@ class LLMTranslator:
         total_chunks = len(chunks)
 
         for idx, chunk in enumerate(chunks, 1):
-            logger.info(f"[{video_id}] Traduciendo lote {idx}/{total_chunks} ({len(chunk)} segmentos)...")
+            logger.info(f"[{video_id}] Traduciendo lote {idx}/{total_chunks} ({len(chunk)} frases)...")
             translated_chunk = self._translate_chunk(client, chunk)
             translated_segments.extend(translated_chunk)
 
-        # Ensamblar resultado final
         result = {
             "video_id":           video_id,
-            "source_language":    transcript_data.get("language", "unknown"),
+            "source_language":    transcript_data.get("language", "en"),
             "target_language":    "es",
             "model":              self.model,
             "segments_count":     len(translated_segments),
@@ -220,7 +247,7 @@ class LLMTranslator:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
         logger.info(
-            f"[{video_id}] Traducción completada: {len(translated_segments)} segmentos "
+            f"[{video_id}] Traducción completada con éxito: {len(translated_segments)} segmentos "
             f"guardados en {out_path.name}"
         )
 

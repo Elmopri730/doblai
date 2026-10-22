@@ -212,15 +212,29 @@ def run_pipeline_thread(job_id: str):
         stage_done(2)
 
         # ── Etapa 04: Traducción ─────────────────────────────────────────────
-        stage04_done = video_id and _check_stage_files(
-            video_id, "04_traduccion", ["transcript_translated.json"]
-        )
+        stage04_done = False
+        if video_id and _check_stage_files(video_id, "04_traduccion", ["transcript_translated.json"]):
+            try:
+                import json as _json
+                tr_file = WORK_DIR / video_id / "04_traduccion" / "transcript_translated.json"
+                with open(tr_file, "r", encoding="utf-8") as _f:
+                    data = _json.load(_f)
+                segs = data.get("segments", [])
+                # Si las primeras frases tienen text_es idéntico a text_original, fue un fallback en inglés
+                if segs and all(s.get("text_es", "").strip().lower() == s.get("text_original", "").strip().lower() for s in segs[:min(len(segs), 5)]):
+                    logger.warning(f"[{job_id}] transcript_translated.json contiene texto en inglés. Re-traduciendo al español...")
+                    stage04_done = False
+                else:
+                    stage04_done = True
+            except Exception:
+                stage04_done = False
+
         if stage04_done:
             update_stage(3, "⏩ Traducción ya completada, saltando...")
             outputs["04_traduccion"] = {
                 "transcript_translated": str(WORK_DIR / video_id / "04_traduccion" / "transcript_translated.json"),
             }
-            logger.info(f"[{job_id}] Etapa 04 ya existe en disco, saltando.")
+            logger.info(f"[{job_id}] Etapa 04 ya existe en disco y es válida, saltando.")
         else:
             update_stage(3, "Traduciendo al español con IA local...")
             translator = LLMTranslator(config)

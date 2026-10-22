@@ -15,11 +15,11 @@ fi
 
 # Arrancar servicio Ollama en segundo plano
 echo "🤖 Iniciando servidor de Ollama..."
-ollama serve > /dev/null 2>&1 &
-sleep 3
+nohup ollama serve > /tmp/ollama.log 2>&1 &
+sleep 4
 
 # Descargar modelo de traducción
-echo "📥 Descargando modelo de traducción qwen2.5:3b..."
+echo "📥 Verificando modelo de traducción qwen2.5:3b..."
 ollama pull qwen2.5:3b
 
 # 3. Instalar dependencias del sistema requeridas (ffmpeg, git)
