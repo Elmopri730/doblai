@@ -11,7 +11,7 @@ pipeline:
 
 stages:
   separation:
-    model: "UVR-MDX-NET-Inst_HQ_3.onnx"
+    model: "htdemucs"
   
   transcription:
     model: "large-v3-turbo"
