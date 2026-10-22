@@ -72,9 +72,16 @@ sleep 2
 # Lanzar túnel Cloudflare
 rm -f /tmp/tunnel.log
 cloudflared tunnel --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
-sleep 5
 
-TUNNEL_URL=$(grep -o 'https://[-0-9a-z]*\.trycloudflare\.com' /tmp/tunnel.log | head -n 1)
+echo "⏳ Conectando túnel público..."
+TUNNEL_URL=""
+for i in $(seq 1 30); do
+    TUNNEL_URL=$(grep -o 'https://[-0-9a-z]*\.trycloudflare\.com' /tmp/tunnel.log 2>/dev/null | head -n 1 || true)
+    if [ -n "$TUNNEL_URL" ]; then
+        break
+    fi
+    sleep 1
+done
 
 echo "=========================================================="
 echo "🎉 ¡DoblAI ESTÁ FUNCIONANDO EN LA RTX 4090!"
