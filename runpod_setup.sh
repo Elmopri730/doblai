@@ -48,6 +48,7 @@ pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy sound
 # 6. Instalar el resto de dependencias de DoblAI
 echo "📦 Instalando dependencias de la aplicación..."
 pip install --no-cache-dir -r requirements.txt
+pip install --no-cache-dir "av<19.0.0"
 pip uninstall -y onnxruntime onnxruntime-gpu 2>/dev/null || true
 pip install --no-cache-dir onnxruntime-gpu
 
