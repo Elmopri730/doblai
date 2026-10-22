@@ -56,8 +56,12 @@ mkdir -p input output work
 echo "🔍 Verificando instalación..."
 python -c "import torch; import torchaudio; import TTS; print('✅ Todos los módulos cargan correctamente!')"
 
-# 8. Instalar y arrancar túnel seguro Cloudflare para acceso público inmediato
+# 8. Limpiar procesos previos y arrancar servidor + túnel seguro
 echo "🌐 Configurando enlace web público..."
+pkill -f uvicorn 2>/dev/null || true
+pkill -f cloudflared 2>/dev/null || true
+sleep 2
+
 if ! command -v cloudflared &> /dev/null; then
     curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
     chmod +x /usr/local/bin/cloudflared
@@ -67,15 +71,15 @@ fi
 export OLLAMA_URL="http://localhost:11434"
 export COQUI_TOS_AGREED="1"
 uvicorn webapp.app:app --host 0.0.0.0 --port 8080 > /tmp/uvicorn.log 2>&1 &
-sleep 2
+sleep 3
 
-# Lanzar túnel Cloudflare
+# Lanzar túnel Cloudflare limpio
 rm -f /tmp/tunnel.log
-cloudflared tunnel --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
+cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8080 > /tmp/tunnel.log 2>&1 &
 
 echo "⏳ Conectando túnel público..."
 TUNNEL_URL=""
-for i in $(seq 1 30); do
+for i in $(seq 1 25); do
     TUNNEL_URL=$(grep -o 'https://[-0-9a-z]*\.trycloudflare\.com' /tmp/tunnel.log 2>/dev/null | head -n 1 || true)
     if [ -n "$TUNNEL_URL" ]; then
         break
