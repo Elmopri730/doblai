@@ -23,8 +23,14 @@ class Transcriber:
         "whisper-large-v3-turbo":   "large-v3-turbo",
         "whisper-medium":           "medium",
         "whisper-small":            "small",
+        "whisper-base":             "base",
+        "whisper-tiny":             "tiny",
         "large-v3":                 "large-v3",
+        "large-v3-turbo":           "large-v3-turbo",
         "medium":                   "medium",
+        "small":                    "small",
+        "base":                     "base",
+        "tiny":                     "tiny",
     }
 
     def __init__(self, config: dict):
@@ -36,9 +42,13 @@ class Transcriber:
         raw_model = (
             config.get("stages", {})
                   .get("transcription", {})
-                  .get("model", "whisper-large-v3")
+                  .get("model", "large-v3-turbo")
         )
-        self.model_name = self.WHISPER_MODEL_MAP.get(raw_model, raw_model)
+        # Normalizar si tiene prefijo whisper-
+        normalized = self.WHISPER_MODEL_MAP.get(raw_model)
+        if not normalized:
+            normalized = raw_model.lower().replace("whisper-", "")
+        self.model_name = normalized
 
         # Idioma de transcripción (None = auto-detección de Whisper)
         lang_cfg = (

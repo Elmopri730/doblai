@@ -1,6 +1,6 @@
 pyyaml
 pydantic>=2.0
-audio-separator
+audio-separator[gpu]
 faster-whisper
 openai
 pytest

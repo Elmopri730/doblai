@@ -14,13 +14,12 @@ stages:
     model: "UVR-MDX-NET-Inst_HQ_3.onnx"
   
   transcription:
-    model: "whisper-base"
+    model: "large-v3-turbo"
     language: "auto"
   
   translation:
-    model: "qwen2.5:1.5b"
-    # IMPORTANTE: Como corre en Docker, debe apuntar al nombre del servicio "ollama"
-    ollama_url: "http://ollama:11434"
+    model: "qwen2.5:3b"
+    ollama_url: "http://localhost:11434"
     temperature: 0.2
     max_retries: 3
   

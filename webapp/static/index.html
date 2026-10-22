@@ -406,7 +406,7 @@ async function checkServer() {
       jobs.forEach(job => {
         state.jobs[job.id] = job;
         renderJob(job.id);
-        if (job.status === 'running') subscribeToJob(job.id);
+        if (job.status === 'running' || job.status === 'queued') subscribeToJob(job.id);
       });
       updateJobsCount();
     }
@@ -625,6 +625,8 @@ fileInput.addEventListener('change', () => {
 
 // ── Inicio ────────────────────────────────────────────────────────
 checkServer();
+// Polling automático cada 2.5s para sincronizar estado en tiempo real (inmune a buffering de túneles)
+setInterval(checkServer, 2500);
 </script>
 </body>
 </html>

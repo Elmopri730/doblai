@@ -48,13 +48,15 @@ pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy sound
 # 6. Instalar el resto de dependencias de DoblAI
 echo "📦 Instalando dependencias de la aplicación..."
 pip install --no-cache-dir -r requirements.txt
+pip uninstall -y onnxruntime 2>/dev/null || true
+pip install --no-cache-dir onnxruntime-gpu
 
 # Asegurar que las carpetas de trabajo existan
 mkdir -p input output work
 
 # 7. Probar que los módulos cargan correctamente
-echo "🔍 Verificando instalación..."
-python -c "import torch; import torchaudio; import TTS; print('✅ Todos los módulos cargan correctamente!')"
+echo "🔍 Verificando instalación y aceleración GPU..."
+python -c "import torch; import torchaudio; import TTS; import onnxruntime as ort; print('Torch CUDA:', torch.cuda.is_available(), '| ONNX Providers:', ort.get_available_providers()); print('✅ Todos los módulos cargan correctamente!')"
 
 # 8. Arrancar túnel Cloudflare y servidor web en primer plano
 echo "🌐 Configurando enlace web público..."
