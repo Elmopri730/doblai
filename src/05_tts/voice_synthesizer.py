@@ -137,10 +137,10 @@ class VoiceSynthesizer:
                 torch.load = safe_load
 
             from TTS.api import TTS
-        except ImportError:
+        except Exception as e:
+            logger.error(f"Error al importar Coqui TTS: {e}", exc_info=True)
             raise RuntimeError(
-                "La librería 'TTS' de Coqui no está instalada. "
-                "Ejecuta: pip install TTS"
+                f"Error al cargar Coqui TTS: {e}. Ejecuta: pip install coqui-tts"
             )
         # Aceptar automáticamente los términos de Coqui para que no pida
         # confirmación interactiva (que crashea en Docker sin terminal).

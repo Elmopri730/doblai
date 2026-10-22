@@ -3,6 +3,7 @@ pydantic>=2.0
 audio-separator[gpu]
 faster-whisper
 av<19.0.0
+coqui-tts
 openai
 pytest
 tqdm

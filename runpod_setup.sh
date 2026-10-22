@@ -32,18 +32,12 @@ pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
 pip install --no-cache-dir pandas scipy "transformers==4.42.4"
 pip install --no-cache-dir torchcodec onnxruntime-gpu || true
 
-# 5. Instalar Coqui TTS con parche para Python 3.12 si no está instalado
+# 5. Instalar Coqui TTS compatible con Python 3.12 (paquete coqui-tts)
 echo "🎙️ Verificando Coqui TTS..."
-if ! python -c "import TTS" &> /dev/null; then
-    rm -rf /tmp/TTS
-    git clone --depth 1 https://github.com/coqui-ai/TTS.git /tmp/TTS
-    sed -i 's/3.12/3.15/g' /tmp/TTS/setup.py
-    pip install --no-cache-dir --no-deps --no-build-isolation -e /tmp/TTS
+if ! python -c "from TTS.api import TTS" &> /dev/null; then
+    pip uninstall -y TTS trainer coqpit 2>/dev/null || true
+    pip install --no-cache-dir coqui-tts
 fi
-
-# Instalar siempre las dependencias de inferencia de TTS
-echo "📦 Instalando dependencias de inferencia..."
-pip install --no-cache-dir coqpit pysbd anyascii unidecode num2words spacy soundfile librosa scikit-learn
 
 # 6. Instalar el resto de dependencias de DoblAI
 echo "📦 Instalando dependencias de la aplicación..."
@@ -57,7 +51,7 @@ mkdir -p input output work
 
 # 7. Probar que los módulos cargan correctamente
 echo "🔍 Verificando instalación y aceleración GPU..."
-python -c "import torch; import torchaudio; import TTS; print('Torch CUDA:', torch.cuda.is_available()); print('✅ Todos los módulos cargan correctamente!')"
+python -c "import torch; from TTS.api import TTS; print('Torch CUDA:', torch.cuda.is_available()); print('✅ Todos los módulos cargan correctamente!')"
 
 # 8. Arrancar túnel Cloudflare y servidor web en primer plano
 echo "🌐 Configurando enlace web público..."
