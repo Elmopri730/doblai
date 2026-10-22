@@ -210,9 +210,25 @@ class VoiceSynthesizer:
         device = self._detect_device()
         tts    = self._load_xtts(device)
 
+        # ── Precalcular huella acústica de la voz UNA SOLA VEZ para multiplicar la velocidad ──
+        gpt_cond_latent = None
+        speaker_embedding = None
+        tts_model = getattr(tts, "synthesizer", None)
+        if tts_model:
+            tts_model = getattr(tts_model, "tts_model", None)
+        if tts_model and hasattr(tts_model, "get_conditioning_latents"):
+            try:
+                logger.info(f"[{video_id}] Precalculando huella de voz en memoria GPU...")
+                gpt_cond_latent, speaker_embedding = tts_model.get_conditioning_latents(audio_path=str(sample_path))
+                logger.info(f"[{video_id}] ✅ Huella de voz en GPU. Modo de síntesis ultra-rápido activado.")
+            except Exception as e:
+                logger.warning(f"No se pudieron precargar latents ({e}), usando método estándar.")
+
         # ── Sintetizar segmento por segmento ──────────────────────────────────
         manifest = []
         synthesized_paths = []
+        import torch
+        import torchaudio
 
         for i, seg in enumerate(segments):
             seg_id   = seg.get("id", i + 1)
@@ -228,14 +244,26 @@ class VoiceSynthesizer:
             seg_out = segments_dir / f"seg_{seg_id:04d}.wav"
             logger.info(f"[{video_id}] [{i+1}/{len(segments)}] Sintetizando: \"{text_es[:60]}...\"")
 
-            # Síntesis con clonación de voz
-            tts.tts_to_file(
-                text=text_es,
-                speaker_wav=str(sample_path),
-                language=self.target_language,
-                file_path=str(seg_out),
-                speed=self.speed,
-            )
+            # Síntesis acelerada con huella precalculada (o fallback tradicional)
+            if gpt_cond_latent is not None and speaker_embedding is not None:
+                out = tts_model.inference(
+                    text=text_es,
+                    language=self.target_language,
+                    gpt_cond_latent=gpt_cond_latent,
+                    speaker_embedding=speaker_embedding,
+                    temperature=self.temperature,
+                    speed=self.speed,
+                )
+                wav_tensor = torch.tensor(out["wav"]).unsqueeze(0)
+                torchaudio.save(str(seg_out), wav_tensor, 24000)
+            else:
+                tts.tts_to_file(
+                    text=text_es,
+                    speaker_wav=str(sample_path),
+                    language=self.target_language,
+                    file_path=str(seg_out),
+                    speed=self.speed,
+                )
 
             # Obtener duración real del audio sintetizado
             result = subprocess.run(
