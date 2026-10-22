@@ -30,7 +30,7 @@ apt-get update -qq && apt-get install -y -qq ffmpeg git > /dev/null
 echo "🐍 Instalando librerías base de IA..."
 pip install --no-cache-dir "numpy<2.0.0,>=1.26.0"
 pip install --no-cache-dir pandas scipy "transformers==4.42.4"
-pip install --no-cache-dir torchcodec || true
+pip install --no-cache-dir torchcodec onnxruntime-gpu || true
 
 # 5. Instalar Coqui TTS con parche para Python 3.12 si no está instalado
 echo "🎙️ Verificando Coqui TTS..."
