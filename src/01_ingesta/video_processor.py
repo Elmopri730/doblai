@@ -115,32 +115,45 @@ class VideoProcessor:
         logger.info(f"[{video_id}] Audio extraído correctamente: {raw_audio_path.name}")
 
         # 3. Normalizar vídeo (Generar video_normalized.mp4)
-        # Si ya es H.264 MP4 y no requiere normalización, se puede copiar para ahorrar CPU,
-        # de lo contrario se recodifica para asegurar que los scripts de sincronización labial posteriores
-        # funcionen correctamente.
+        # Si ya es MP4, se copia directamente en milisegundos sin re-encode.
+        # Si es otro contenedor (MKV, MOV, etc.), se remuxea con -c:v copy en 1 segundo.
         normalized_video_path = stage_dir / "video_normalized.mp4"
         
-        # Por robustez, hacemos un encode rápido a h264/aac si no lo es, o copia directa si ya lo es.
-        is_mp4_h264 = (video_path.suffix.lower() == ".mp4" and 
-                       video_stream.get("codec_name") == "h264")
-        
-        if is_mp4_h264:
-            logger.info(f"[{video_id}] Copiando vídeo directo (ya está en H.264 MP4)...")
+        if video_path.suffix.lower() == ".mp4":
+            logger.info(f"[{video_id}] Copiando vídeo directo (contenedor MP4)...")
             shutil.copy2(video_path, normalized_video_path)
         else:
-            logger.info(f"[{video_id}] Normalizando vídeo a H.264 MP4 para compatibilidad del pipeline...")
+            logger.info(f"[{video_id}] Remuxeando vídeo a contenedor MP4 (stream copy sin pérdida)...")
             video_cmd = [
                 "ffmpeg", "-y",
                 "-i", str(video_path),
-                "-c:v", "libx264",
-                "-preset", "fast",
-                "-crf", "23",
-                "-c:a", "aac",
-                "-b:a", "128k",
+                "-c:v", "copy",
+                "-an",
                 str(normalized_video_path)
             ]
-            subprocess.run(video_cmd, capture_output=True, check=True)
-            logger.info(f"[{video_id}] Vídeo normalizado correctamente: {normalized_video_path.name}")
+            try:
+                subprocess.run(video_cmd, capture_output=True, check=True)
+                logger.info(f"[{video_id}] Remux completado: {normalized_video_path.name}")
+            except subprocess.CalledProcessError:
+                logger.warning(f"[{video_id}] Remux falló, transcodificando rápido con NVENC/ultrafast...")
+                # Fallback con GPU NVENC o CPU ultrafast
+                video_fallback = [
+                    "ffmpeg", "-y",
+                    "-i", str(video_path),
+                    "-c:v", "h264_nvenc",
+                    "-preset", "p1",
+                    "-an",
+                    str(normalized_video_path)
+                ]
+                try:
+                    subprocess.run(video_fallback, capture_output=True, check=True)
+                except Exception:
+                    subprocess.run([
+                        "ffmpeg", "-y", "-i", str(video_path),
+                        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-an",
+                        str(normalized_video_path)
+                    ], capture_output=True, check=True)
+        logger.info(f"[{video_id}] Vídeo listo: {normalized_video_path.name}")
 
         # 4. Extraer subtítulos embebidos si existen (Opcional, no detiene el pipeline si falla)
         sub_streams = [s for s in metadata.get("streams", []) if s.get("codec_type") == "subtitle"]
