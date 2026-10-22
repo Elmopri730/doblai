@@ -2,7 +2,6 @@ import os
 import shutil
 import logging
 from pathlib import Path
-import onnxruntime
 from audio_separator.separator import Separator
 
 logger = logging.getLogger("dubbing.separation")
@@ -28,29 +27,22 @@ class AudioSeparatorWrapper:
             raw_model = "UVR-MDX-NET-Inst_HQ_3.onnx"
         self.model_name = raw_model
 
-    def detect_onnx_provider(self) -> str:
+    def detect_onnx_provider(self):
         """Detecta los proveedores de ejecución de ONNX disponibles y retorna el adecuado."""
-        available_providers = onnxruntime.get_available_providers()
-        logger.info(f"Proveedores ONNX Runtime disponibles: {available_providers}")
-        
-        if self.modo == "gpu":
-            if "CUDAExecutionProvider" in available_providers:
-                logger.info("Modo GPU forzado: CUDAExecutionProvider seleccionado.")
-                return "CUDAExecutionProvider"
-            else:
-                raise RuntimeError("Modo GPU forzado, pero CUDAExecutionProvider no está disponible en ONNX Runtime.")
-        
-        elif self.modo == "cpu":
-            logger.info("Modo CPU forzado: CPUExecutionProvider seleccionado.")
-            return "CPUExecutionProvider"
-        
-        else: # "auto"
-            if "CUDAExecutionProvider" in available_providers:
-                logger.info("Modo Auto: GPU detectada. CUDAExecutionProvider seleccionado.")
-                return "CUDAExecutionProvider"
-            else:
-                logger.info("Modo Auto: No se detectó GPU compatible. CPUExecutionProvider seleccionado.")
-                return "CPUExecutionProvider"
+        try:
+            import onnxruntime as ort
+            if hasattr(ort, "get_available_providers"):
+                available_providers = ort.get_available_providers()
+                logger.info(f"Proveedores ONNX Runtime disponibles: {available_providers}")
+                if self.modo == "gpu" or self.modo == "auto":
+                    if "CUDAExecutionProvider" in available_providers:
+                        logger.info("CUDAExecutionProvider seleccionado.")
+                        return "CUDAExecutionProvider"
+                if "CPUExecutionProvider" in available_providers:
+                    return "CPUExecutionProvider"
+        except Exception as e:
+            logger.warning(f"Aviso al detectar proveedores ONNX: {e}")
+        return None
 
     def run(self, video_id: str, raw_audio_path_str: str) -> dict:
         """
@@ -66,13 +58,11 @@ class AudioSeparatorWrapper:
 
         logger.info(f"[{video_id}] Iniciando etapa 02 (Separación de voz/música)...")
 
-        # Detectar el proveedor óptimo de ONNX
-        provider = self.detect_onnx_provider()
-        
         # Inicializar el Separador de audio
-        # Pasamos el directorio de salida temporal
         separator = Separator(output_dir=str(stage_dir))
-        separator.onnx_execution_providers = [provider]
+        provider = self.detect_onnx_provider()
+        if provider:
+            separator.onnx_execution_providers = [provider]
         
         logger.info(f"[{video_id}] Cargando modelo de separación {self.model_name}...")
         separator.load_model(model_filename=self.model_name)
